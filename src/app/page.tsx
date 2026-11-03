@@ -27,7 +27,7 @@ const steps = [
 ]
 
 export default async function HomePage() {
-  let stats: Stats = { reports: 0, collected: 0, open: 0, kgCollected: 0, users: 0 }
+  let stats: Stats = { reports: 0, collected: 0, open: 0, review: 0, kgCollected: 0, users: 0 }
   let recent: ReportItem[] = []
   try {
     ;[stats, recent] = await Promise.all([getStats(), getRecentlyCollected(3)])

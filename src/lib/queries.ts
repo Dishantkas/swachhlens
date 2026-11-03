@@ -2,7 +2,7 @@ import 'server-only'
 import { db, iso } from './db'
 import { CLAIM_HOURS } from './points'
 
-export type ReportStatus = 'pending' | 'claimed' | 'collected' | 'rejected'
+export type ReportStatus = 'pending' | 'claimed' | 'review' | 'collected' | 'rejected'
 
 export type ReportItem = {
   id: number
@@ -23,6 +23,7 @@ export type ReportItem = {
   claimedAt: string | null
   collectedAt: string | null
   collectionNote: string | null
+  aiChecked: boolean
 }
 
 // Claims that were never finished go back to the open pool after CLAIM_HOURS.
@@ -48,6 +49,7 @@ function toReport(row: Record<string, any>): ReportItem {
     claimedAt: iso(row.claimed_at),
     collectedAt: iso(row.collected_at),
     collectionNote: row.collection_note,
+    aiChecked: row.ai_checked !== false,
   }
 }
 
@@ -56,7 +58,7 @@ async function selectReports(where: string, params: unknown[], limit = 100) {
   const rows = await sql(
     `SELECT r.id, r.waste_type, r.est_weight_kg, r.hazard, r.summary, r.lat, r.lng, r.address, r.landmark,
             ${STATUS_SQL} AS status, r.reporter_id, r.collector_id, r.created_at, r.claimed_at,
-            r.collected_at, r.collection_note, u.name AS reporter_name, c.name AS collector_name
+            r.collected_at, r.collection_note, r.ai_checked, u.name AS reporter_name, c.name AS collector_name
        FROM reports r
        JOIN users u ON u.id = r.reporter_id
        LEFT JOIN users c ON c.id = r.collector_id
@@ -101,6 +103,7 @@ export type Stats = {
   reports: number
   collected: number
   open: number
+  review: number
   kgCollected: number
   users: number
 }
@@ -111,7 +114,8 @@ export async function getStats(): Promise<Stats> {
     SELECT
       count(*)::int AS reports,
       count(*) FILTER (WHERE status = 'collected')::int AS collected,
-      count(*) FILTER (WHERE status IN ('pending', 'claimed'))::int AS open,
+      count(*) FILTER (WHERE status IN ('pending', 'claimed', 'review'))::int AS open,
+      count(*) FILTER (WHERE status = 'review')::int AS review,
       coalesce(sum(est_weight_kg) FILTER (WHERE status = 'collected'), 0)::float AS kg,
       (SELECT count(*)::int FROM users) AS users
     FROM reports
@@ -120,6 +124,7 @@ export async function getStats(): Promise<Stats> {
     reports: row.reports,
     collected: row.collected,
     open: row.open,
+    review: row.review,
     kgCollected: Math.round(Number(row.kg) * 10) / 10,
     users: row.users,
   }

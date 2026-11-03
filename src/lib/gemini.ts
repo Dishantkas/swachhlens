@@ -7,21 +7,21 @@ export type Hazard = 'low' | 'medium' | 'high'
 
 type ImagePart = { mimeType: string; base64: string }
 
-const FALLBACK_MODELS = ['gemini-3.8-flash', 'gemini-3.5-flash-lite', 'gemini-3.6-flash', 'gemini-3-flash-preview']
+const FALLBACK_MODELS = ['gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-3.5-flash-lite', 'gemini-3-flash-preview']
 const RETRYABLE = new Set([429, 500, 502, 503, 504])
 
 let workingModel: string | null = null
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
-async function callModel(model: string, key: string, body: string): Promise<Response | null> {
+async function callModel(model: string, key: string, body: string, timeoutMs: number): Promise<Response | null> {
   try {
     return await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
       body,
       cache: 'no-store',
-      signal: AbortSignal.timeout(20000),
+      signal: AbortSignal.timeout(timeoutMs),
     })
   } catch (err) {
     console.warn(`Gemini model ${model} timed out or failed`, err)
@@ -62,8 +62,10 @@ async function ask(prompt: string, images: ImagePart[]): Promise<any> {
   let lastError = 'no response'
   outer: for (const model of models) {
     for (let attempt = 0; attempt < 2; attempt++) {
-      if (Date.now() - started > 50000) break outer
-      res = await callModel(model, key, body)
+      // Stay well inside the 60 second server limit.
+      const remaining = 52000 - (Date.now() - started)
+      if (remaining < 8000) break outer
+      res = await callModel(model, key, body, Math.min(25000, remaining))
       if (res?.ok) {
         workingModel = model
         break outer
@@ -78,7 +80,8 @@ async function ask(prompt: string, images: ImagePart[]): Promise<any> {
         continue
       }
       if (res && !RETRYABLE.has(res.status)) break
-      if (attempt === 0) await sleep(1500)
+      if (res?.status === 503) break
+      if (attempt === 0) await sleep(1000)
     }
     if (res && !RETRYABLE.has(res.status) && res.status !== 404) break
   }

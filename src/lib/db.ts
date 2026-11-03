@@ -14,10 +14,13 @@ function getClient() {
 }
 
 async function createSchema(sql: NeonQueryFunction<false, false>) {
-  const [{ ready }] = await sql`SELECT to_regclass('public.feedback') IS NOT NULL AS ready`
+  const [{ ready }] = await sql`
+    SELECT EXISTS (
+      SELECT 1 FROM information_schema.columns WHERE table_name = 'reports' AND column_name = 'ai_checked'
+    ) AS ready`
   if (ready) return
 
-  // Runs once per database. The feedback table is created last, so its presence means everything is in place.
+  // Runs once per database. The ai_checked column is added last, so its presence means everything is in place.
   // The advisory lock stops two cold starts from creating the same tables at once.
   await sql.transaction([
     sql`SELECT pg_advisory_xact_lock(7243001)`,
@@ -85,6 +88,7 @@ async function createSchema(sql: NeonQueryFunction<false, false>) {
         created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
         updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
       )`,
+    sql`ALTER TABLE reports ADD COLUMN IF NOT EXISTS ai_checked BOOLEAN NOT NULL DEFAULT true`,
   ])
 }
 

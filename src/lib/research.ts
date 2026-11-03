@@ -23,6 +23,7 @@ export async function getLabelQueue(): Promise<LabelItem[]> {
   const rows = await sql`
     SELECT id, waste_type, verified_type, confidence, summary, status, created_at
     FROM reports
+    WHERE ai_checked
     ORDER BY (verified_type IS NULL) DESC, created_at DESC
     LIMIT 200`
   return rows.map((r) => ({
@@ -38,7 +39,7 @@ export async function getLabelQueue(): Promise<LabelItem[]> {
 
 export async function getAccuracy() {
   const sql = await db()
-  const rows = await sql`SELECT waste_type, verified_type FROM reports WHERE verified_type IS NOT NULL`
+  const rows = await sql`SELECT waste_type, verified_type FROM reports WHERE verified_type IS NOT NULL AND ai_checked`
   const classes: string[] = [...WASTE_TYPES, NOT_WASTE]
 
   // matrix[actual][predicted]

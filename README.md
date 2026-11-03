@@ -16,6 +16,7 @@ SwachhLens is a web app for reporting and cleaning up litter in your area. A cit
 - **AI accuracy checker.** Admins confirm the real waste type in each photo. The app calculates accuracy, a confusion matrix, per-class precision, recall and F1, and an exact binomial test against an 80% target.
 - **Survey results.** Mean SUS score, grade, Likert charts and one-sample t-tests for each hypothesis.
 - **CSV export.** Download all reports and survey responses for analysis in Excel or SPSS.
+- **Works even when the AI is down.** If Gemini is busy, reporters enter the waste type and weight themselves, and clean-ups go to the admin for approval. Manual reports are kept out of the AI accuracy figures.
 - **Fair-play rules.** You can't collect your own report, the same photo can't be used twice, and there are daily report limits. Claims expire after 24 hours.
 
 ## Tech stack
@@ -48,7 +49,7 @@ The database tables are created automatically the first time the app connects.
 ### Database tables
 
 - `users`: name, email, password hash
-- `reports`: photo, AI result, location, status (`pending` → `claimed` → `collected` / `rejected`), collector, after photo
+- `reports`: photo, AI result, location, status (`pending` → `claimed` → `review` (only when AI is unavailable) → `collected` / `rejected`), `ai_checked` flag, collector, after photo
 - `points_ledger`: every point earned or lost, with the reason
 - `feedback`: one survey response per user (SUS items s1–s10, SUS score, four Likert items, demographics)
 

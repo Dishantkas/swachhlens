@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useMemo, useState } from 'react'
-import { CheckCircle2, Loader2, MapPin, Navigation, Scale, XCircle } from 'lucide-react'
+import { CheckCircle2, Clock, Loader2, MapPin, Navigation, Scale, XCircle } from 'lucide-react'
 import { claimReport, completeCollection, releaseReport } from '@/app/actions/collect'
 import { getPosition } from '@/lib/compress'
 import { WASTE_COLORS, capitalize, formatDate } from '@/lib/format'
@@ -18,7 +18,7 @@ type Props = {
   userId: number | null
 }
 
-type Outcome = { passed: boolean; points: number; note: string }
+type Outcome = { passed: boolean; review: boolean; points: number; note: string }
 
 export default function CollectBoard({ open, mine, userId }: Props) {
   const router = useRouter()
@@ -218,11 +218,16 @@ function CompleteDialog({ report, onClose }: { report: ReportItem; onClose: (cha
     }).catch(() => ({ ok: false as const, error: 'Network problem. Please try again.' }))
     setBusy(false)
 
-    if (!res.ok) {
-      setError(res.error)
+    if (!res?.ok) {
+      setError(res?.error ?? 'Something went wrong. Please try again.')
       return
     }
-    setOutcome({ passed: res.data.passed, points: res.data.points, note: res.data.check.note })
+    setOutcome({
+      passed: res.data.passed,
+      review: res.data.review,
+      points: res.data.points,
+      note: res.data.check?.note ?? '',
+    })
   }
 
   return (
@@ -234,11 +239,17 @@ function CompleteDialog({ report, onClose }: { report: ReportItem; onClose: (cha
         </p>
 
         {outcome ? (
-          <div className={`mt-5 rounded-xl p-4 ${outcome.passed ? 'bg-brand-50' : 'bg-red-50'}`}>
+          <div
+            className={`mt-5 rounded-xl p-4 ${outcome.passed ? 'bg-brand-50' : outcome.review ? 'bg-sky-50' : 'bg-red-50'}`}
+          >
             <div className="flex items-center gap-2 font-semibold">
               {outcome.passed ? (
                 <>
                   <CheckCircle2 className="text-brand-600" /> Verified! +{outcome.points} points
+                </>
+              ) : outcome.review ? (
+                <>
+                  <Clock className="text-sky-600" /> Sent for admin review
                 </>
               ) : (
                 <>
@@ -246,8 +257,14 @@ function CompleteDialog({ report, onClose }: { report: ReportItem; onClose: (cha
                 </>
               )}
             </div>
-            {outcome.note && <p className="mt-1 text-sm text-stone-700">{outcome.note}</p>}
-            {outcome.passed && (
+            {outcome.review ? (
+              <p className="mt-1 text-sm text-stone-700">
+                The AI is busy right now, so an admin will compare your photos. You get your points once it&apos;s approved.
+              </p>
+            ) : (
+              outcome.note && <p className="mt-1 text-sm text-stone-700">{outcome.note}</p>
+            )}
+            {(outcome.passed || outcome.review) && (
               <p className="mt-2 text-sm text-stone-600">
                 Got 2 minutes?{' '}
                 <Link href="/feedback" className="font-medium text-brand-700 hover:underline">
@@ -255,7 +272,7 @@ function CompleteDialog({ report, onClose }: { report: ReportItem; onClose: (cha
                 </Link>
               </p>
             )}
-            {!outcome.passed && (
+            {!outcome.passed && !outcome.review && (
               <p className="mt-2 text-sm text-stone-600">
                 Make sure the photo shows the same place and that the waste is gone, then try again.
               </p>
@@ -277,7 +294,7 @@ function CompleteDialog({ report, onClose }: { report: ReportItem; onClose: (cha
         {error && <p className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
 
         <div className="mt-6 flex justify-end gap-2">
-          {outcome?.passed ? (
+          {outcome?.passed || outcome?.review ? (
             <button onClick={() => onClose(true)} className="btn-primary">
               Done
             </button>

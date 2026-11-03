@@ -1,6 +1,7 @@
 const styles: Record<string, string> = {
   pending: 'bg-amber-50 text-amber-700 ring-amber-200',
   claimed: 'bg-sky-50 text-sky-700 ring-sky-200',
+  review: 'bg-violet-50 text-violet-700 ring-violet-200',
   collected: 'bg-brand-50 text-brand-700 ring-brand-200',
   rejected: 'bg-red-50 text-red-700 ring-red-200',
 }
@@ -8,6 +9,7 @@ const styles: Record<string, string> = {
 const labels: Record<string, string> = {
   pending: 'Waiting for pick-up',
   claimed: 'Being collected',
+  review: 'Clean-up under review',
   collected: 'Cleaned',
   rejected: 'Rejected',
 }

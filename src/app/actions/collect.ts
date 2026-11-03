@@ -103,10 +103,27 @@ export async function completeCollection(input: {
     const before = photoFromDataUrl(report.photo)
     if (!before) throw new Error(`Report ${id} has an unreadable photo`)
 
-    const check = await compareCleanup(before, after)
+    let check
+    try {
+      check = await compareCleanup(before, after)
+    } catch (err) {
+      // AI is unavailable: keep the after photo and let an admin approve the clean-up instead.
+      console.warn('AI clean-up check unavailable, sending to admin review', err)
+      const queued = await sql`
+        UPDATE reports
+        SET status = 'review', after_photo = ${after.dataUrl}, after_photo_hash = ${after.hash},
+            collection_note = 'Waiting for admin review (AI check unavailable)', collected_at = now()
+        WHERE id = ${id} AND status = 'claimed' AND collector_id = ${user.id}
+        RETURNING id`
+      if (!queued.length) throw new UserError('This pick-up was already completed.')
+      revalidatePath('/collect')
+      revalidatePath('/admin')
+      return { passed: false as const, review: true as const, check: null, points: 0 }
+    }
+
     const passed = check.sameSpot && check.cleaned && check.confidence >= 0.6
     if (!passed) {
-      return { passed: false as const, check, points: 0 }
+      return { passed: false as const, review: false as const, check, points: 0 }
     }
 
     const points = collectionPoints(Number(report.est_weight_kg))
@@ -126,6 +143,6 @@ export async function completeCollection(input: {
     revalidatePath('/')
     revalidatePath('/collect')
     revalidatePath(`/reports/${id}`)
-    return { passed: true as const, check, points }
+    return { passed: true as const, review: false as const, check, points }
   })
 }

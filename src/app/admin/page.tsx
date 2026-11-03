@@ -38,6 +38,7 @@ export default async function AdminPage() {
   const cards = [
     { label: 'Total reports', value: stats.reports },
     { label: 'Open', value: stats.open },
+    { label: 'Needs review', value: stats.review },
     { label: 'Cleaned', value: stats.collected },
     { label: 'Kg collected', value: stats.kgCollected },
     { label: 'Users', value: stats.users },
@@ -49,7 +50,7 @@ export default async function AdminPage() {
       <h1 className="text-2xl font-bold">Admin dashboard</h1>
       <AdminTabs />
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-7">
         {cards.map((c) => (
           <div key={c.label} className="card p-4">
             <p className="text-2xl font-bold">{c.value}</p>

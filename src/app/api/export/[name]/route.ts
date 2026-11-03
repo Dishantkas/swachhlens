@@ -22,15 +22,15 @@ export async function GET(_request: Request, { params }: { params: { name: strin
 
   if (params.name === 'reports') {
     rows = await sql`
-      SELECT id, created_at, reporter_id, waste_type AS ai_waste_type, verified_type,
-             CASE WHEN verified_type IS NULL THEN NULL ELSE (verified_type = waste_type) END AS ai_correct,
+      SELECT id, created_at, reporter_id, ai_checked, waste_type, verified_type,
+             CASE WHEN verified_type IS NULL OR NOT ai_checked THEN NULL ELSE (verified_type = waste_type) END AS ai_correct,
              est_weight_kg, hazard, confidence, status, lat, lng, address, landmark,
              collector_id, claimed_at, collected_at,
              round((extract(epoch FROM collected_at - created_at) / 3600)::numeric, 2) AS hours_to_clean
       FROM reports
       ORDER BY id`
     columns = [
-      'id', 'created_at', 'reporter_id', 'ai_waste_type', 'verified_type', 'ai_correct', 'est_weight_kg', 'hazard',
+      'id', 'created_at', 'reporter_id', 'ai_checked', 'waste_type', 'verified_type', 'ai_correct', 'est_weight_kg', 'hazard',
       'confidence', 'status', 'lat', 'lng', 'address', 'landmark', 'collector_id', 'claimed_at', 'collected_at',
       'hours_to_clean',
     ]

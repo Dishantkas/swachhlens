@@ -12,7 +12,7 @@ export default async function ReportDetailPage({ params }: { params: { id: strin
   const report = await getReport(id)
   if (!report || report.status === 'rejected') notFound()
 
-  const collected = report.status === 'collected'
+  const collected = report.status === 'collected' || report.status === 'review'
 
   return (
     <div className="space-y-6">
@@ -47,6 +47,9 @@ export default async function ReportDetailPage({ params }: { params: { id: strin
         <div className="space-y-4">
           <div className="card space-y-3 text-sm">
             {report.summary && <p className="text-base text-stone-800">{report.summary}</p>}
+            {!report.aiChecked && (
+              <p className="rounded-lg bg-amber-50 px-3 py-2 text-amber-800">Details entered by the reporter (AI was unavailable).</p>
+            )}
             <p className="flex items-center gap-2 text-stone-600">
               <Scale size={16} /> About {report.weightKg} kg
             </p>
@@ -65,7 +68,8 @@ export default async function ReportDetailPage({ params }: { params: { id: strin
             </p>
             {collected && (
               <div className="rounded-lg bg-brand-50 p-3 text-brand-800">
-                Cleaned by <b>{report.collectorName}</b> on {formatDate(report.collectedAt)}
+                {report.status === 'review' ? 'Clean-up by' : 'Cleaned by'} <b>{report.collectorName}</b> on{' '}
+                {formatDate(report.collectedAt)}
                 {report.collectionNote && <p className="mt-1 text-sm text-stone-700">{report.collectionNote}</p>}
               </div>
             )}

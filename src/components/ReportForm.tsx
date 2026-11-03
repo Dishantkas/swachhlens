@@ -6,6 +6,7 @@ import { CheckCircle2, Loader2, LocateFixed, MapPin, Sparkles } from 'lucide-rea
 import { analyzeReport, findAddress, submitReport } from '@/app/actions/reports'
 import { getPosition } from '@/lib/compress'
 import { capitalize } from '@/lib/format'
+import { WASTE_TYPES } from '@/lib/waste'
 import MapView from './MapView'
 import PhotoInput from './PhotoInput'
 import { HazardBadge } from './StatusBadge'
@@ -30,11 +31,13 @@ export default function ReportForm() {
   const [busy, setBusy] = useState<'analyse' | 'locate' | 'submit' | null>(null)
   const [error, setError] = useState('')
   const [done, setDone] = useState<{ id: number; points: number } | null>(null)
+  const [manual, setManual] = useState<{ wasteType: string; weightKg: string; hazard: string } | null>(null)
 
   function changePhoto(value: string | null) {
     setPhoto(value)
     setAnalysis(null)
     setTicket(null)
+    setManual(null)
     setError('')
   }
 
@@ -44,13 +47,20 @@ export default function ReportForm() {
     setError('')
     const res = await analyzeReport(photo).catch(() => ({ ok: false as const, error: 'Network problem. Please try again.' }))
     setBusy(null)
-    if (!res.ok) {
-      setError(res.error)
+    if (!res?.ok) {
+      setError(res?.error ?? 'Something went wrong. Please try again.')
       return
     }
-    setAnalysis(res.data.analysis)
     setTicket(res.data.ticket)
+    if (res.data.mode === 'ai') {
+      setAnalysis(res.data.analysis)
+    } else {
+      setManual({ wasteType: '', weightKg: '', hazard: 'low' })
+    }
   }
+
+  const manualReady = manual !== null && manual.wasteType !== '' && Number(manual.weightKg) > 0
+  const canSubmit = Boolean(ticket && spot && (analysis || manualReady))
 
   async function pickSpot(lat: number, lng: number) {
     setSpot({ lat, lng })
@@ -73,16 +83,24 @@ export default function ReportForm() {
   }
 
   async function submit() {
-    if (!photo || !ticket || !spot) return
+    if (!photo || !ticket || !spot || !canSubmit) return
     setBusy('submit')
     setError('')
-    const res = await submitReport({ photo, ticket, lat: spot.lat, lng: spot.lng, address, landmark }).catch(() => ({
+    const res = await submitReport({
+      photo,
+      ticket,
+      lat: spot.lat,
+      lng: spot.lng,
+      address,
+      landmark,
+      manual: manual ? { wasteType: manual.wasteType, weightKg: Number(manual.weightKg), hazard: manual.hazard } : undefined,
+    }).catch(() => ({
       ok: false as const,
       error: 'Network problem. Please try again.',
     }))
     setBusy(null)
-    if (!res.ok) {
-      setError(res.error)
+    if (!res?.ok) {
+      setError(res?.error ?? 'Something went wrong. Please try again.')
       return
     }
     setDone(res.data)
@@ -129,7 +147,7 @@ export default function ReportForm() {
         <h2 className="font-semibold">1. Photo of the waste</h2>
         <PhotoInput value={photo} onChange={changePhoto} disabled={busy !== null} />
 
-        {photo && !analysis && (
+        {photo && !analysis && !manual && (
           <button onClick={analyse} disabled={busy !== null} className="btn-primary w-full">
             {busy === 'analyse' ? <Loader2 className="animate-spin" size={16} /> : <Sparkles size={16} />}
             {busy === 'analyse' ? 'Analysing photo…' : 'Analyse with AI'}
@@ -145,6 +163,64 @@ export default function ReportForm() {
             </div>
             {analysis.summary && <p className="mt-1 text-sm text-stone-700">{analysis.summary}</p>}
             <p className="mt-2 text-xs text-stone-500">AI confidence {Math.round(analysis.confidence * 100)}%</p>
+          </div>
+        )}
+
+        {manual && (
+          <div className="space-y-3 rounded-xl bg-amber-50 p-4">
+            <p className="text-sm text-amber-800">
+              The AI is busy right now, so please fill in the details yourself. An admin may review this report.
+            </p>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div>
+                <label className="label" htmlFor="m-type">
+                  Waste type
+                </label>
+                <select
+                  id="m-type"
+                  className="input"
+                  value={manual.wasteType}
+                  onChange={(e) => setManual({ ...manual, wasteType: e.target.value })}
+                >
+                  <option value="">Choose…</option>
+                  {WASTE_TYPES.map((t) => (
+                    <option key={t} value={t}>
+                      {capitalize(t)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="label" htmlFor="m-weight">
+                  Approx. weight (kg)
+                </label>
+                <input
+                  id="m-weight"
+                  type="number"
+                  min="0.1"
+                  max="500"
+                  step="0.1"
+                  className="input"
+                  value={manual.weightKg}
+                  onChange={(e) => setManual({ ...manual, weightKg: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="label" htmlFor="m-hazard">
+                  Hazard
+                </label>
+                <select
+                  id="m-hazard"
+                  className="input"
+                  value={manual.hazard}
+                  onChange={(e) => setManual({ ...manual, hazard: e.target.value })}
+                >
+                  <option value="low">Low</option>
+                  <option value="medium">Medium</option>
+                  <option value="high">High (glass, medical, chemical)</option>
+                </select>
+              </div>
+            </div>
           </div>
         )}
       </section>
@@ -182,11 +258,11 @@ export default function ReportForm() {
 
       <div className="lg:col-span-2">
         {error && <p className="mb-3 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
-        <button onClick={submit} disabled={!analysis || !spot || busy !== null} className="btn-primary w-full py-3 text-base">
+        <button onClick={submit} disabled={!canSubmit || busy !== null} className="btn-primary w-full py-3 text-base">
           {busy === 'submit' && <Loader2 className="animate-spin" size={18} />}
           Submit report
         </button>
-        {(!analysis || !spot) && (
+        {!canSubmit && (
           <p className="mt-2 text-center text-xs text-stone-500">Analyse a photo and set the location to submit.</p>
         )}
       </div>
