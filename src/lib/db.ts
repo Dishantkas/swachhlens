@@ -14,50 +14,57 @@ function getClient() {
 }
 
 async function createSchema(sql: NeonQueryFunction<false, false>) {
-  await sql`
-    CREATE TABLE IF NOT EXISTS users (
-      id SERIAL PRIMARY KEY,
-      name TEXT NOT NULL,
-      email TEXT NOT NULL UNIQUE,
-      password_hash TEXT NOT NULL,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-    )`
-  await sql`
-    CREATE TABLE IF NOT EXISTS reports (
-      id SERIAL PRIMARY KEY,
-      reporter_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      waste_type TEXT NOT NULL,
-      est_weight_kg REAL NOT NULL DEFAULT 0,
-      hazard TEXT NOT NULL DEFAULT 'low',
-      summary TEXT,
-      confidence REAL,
-      lat DOUBLE PRECISION NOT NULL,
-      lng DOUBLE PRECISION NOT NULL,
-      address TEXT,
-      landmark TEXT,
-      photo TEXT NOT NULL,
-      photo_hash TEXT NOT NULL UNIQUE,
-      status TEXT NOT NULL DEFAULT 'pending',
-      collector_id INT REFERENCES users(id) ON DELETE SET NULL,
-      claimed_at TIMESTAMPTZ,
-      after_photo TEXT,
-      after_photo_hash TEXT UNIQUE,
-      collection_note TEXT,
-      collected_at TIMESTAMPTZ,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-    )`
-  await sql`CREATE INDEX IF NOT EXISTS reports_status_idx ON reports (status)`
-  await sql`CREATE INDEX IF NOT EXISTS reports_reporter_idx ON reports (reporter_id)`
-  await sql`
-    CREATE TABLE IF NOT EXISTS points_ledger (
-      id SERIAL PRIMARY KEY,
-      user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      report_id INT REFERENCES reports(id) ON DELETE SET NULL,
-      points INT NOT NULL,
-      reason TEXT NOT NULL,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-    )`
-  await sql`CREATE INDEX IF NOT EXISTS points_user_idx ON points_ledger (user_id)`
+  const [{ ready }] = await sql`SELECT to_regclass('public.points_ledger') IS NOT NULL AS ready`
+  if (ready) return
+
+  // The advisory lock stops two cold starts from creating the same tables at once.
+  await sql.transaction([
+    sql`SELECT pg_advisory_xact_lock(7243001)`,
+    sql`
+      CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        name TEXT NOT NULL,
+        email TEXT NOT NULL UNIQUE,
+        password_hash TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      )`,
+    sql`
+      CREATE TABLE IF NOT EXISTS reports (
+        id SERIAL PRIMARY KEY,
+        reporter_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        waste_type TEXT NOT NULL,
+        est_weight_kg REAL NOT NULL DEFAULT 0,
+        hazard TEXT NOT NULL DEFAULT 'low',
+        summary TEXT,
+        confidence REAL,
+        lat DOUBLE PRECISION NOT NULL,
+        lng DOUBLE PRECISION NOT NULL,
+        address TEXT,
+        landmark TEXT,
+        photo TEXT NOT NULL,
+        photo_hash TEXT NOT NULL UNIQUE,
+        status TEXT NOT NULL DEFAULT 'pending',
+        collector_id INT REFERENCES users(id) ON DELETE SET NULL,
+        claimed_at TIMESTAMPTZ,
+        after_photo TEXT,
+        after_photo_hash TEXT UNIQUE,
+        collection_note TEXT,
+        collected_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      )`,
+    sql`CREATE INDEX IF NOT EXISTS reports_status_idx ON reports (status)`,
+    sql`CREATE INDEX IF NOT EXISTS reports_reporter_idx ON reports (reporter_id)`,
+    sql`
+      CREATE TABLE IF NOT EXISTS points_ledger (
+        id SERIAL PRIMARY KEY,
+        user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        report_id INT REFERENCES reports(id) ON DELETE SET NULL,
+        points INT NOT NULL,
+        reason TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      )`,
+    sql`CREATE INDEX IF NOT EXISTS points_user_idx ON points_ledger (user_id)`,
+  ])
 }
 
 // Tables are created on first use, so a fresh Neon database works without a manual setup step.

@@ -1,4 +1,5 @@
 import 'server-only'
+import { UserError } from './errors'
 
 export const WASTE_TYPES = [
   'plastic',
@@ -17,31 +18,54 @@ export type Hazard = 'low' | 'medium' | 'high'
 
 type ImagePart = { mimeType: string; base64: string }
 
+const FALLBACK_MODELS = ['gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-3-flash-preview', 'gemini-flash-latest']
+
+let workingModel: string | null = null
+
+async function callModel(model: string, key: string, body: string) {
+  return fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
+    body,
+    cache: 'no-store',
+  })
+}
+
 async function ask(prompt: string, images: ImagePart[]): Promise<any> {
   const key = process.env.GEMINI_API_KEY
   if (!key) throw new Error('GEMINI_API_KEY is not set')
-  const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash'
 
-  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
-    body: JSON.stringify({
-      contents: [
-        {
-          role: 'user',
-          parts: [
-            { text: prompt },
-            ...images.map((img) => ({ inlineData: { mimeType: img.mimeType, data: img.base64 } })),
-          ],
-        },
-      ],
-      generationConfig: { responseMimeType: 'application/json', temperature: 0.2 },
-    }),
-    cache: 'no-store',
+  const body = JSON.stringify({
+    contents: [
+      {
+        role: 'user',
+        parts: [
+          { text: prompt },
+          ...images.map((img) => ({ inlineData: { mimeType: img.mimeType, data: img.base64 } })),
+        ],
+      },
+    ],
+    generationConfig: { responseMimeType: 'application/json', temperature: 0.2 },
   })
 
-  if (!res.ok) {
-    throw new Error(`Gemini request failed: ${res.status} ${await res.text()}`)
+  // Google retires model names from time to time, so fall back to the next one if a model is gone.
+  const preferred = workingModel ?? process.env.GEMINI_MODEL
+  const models = [...new Set([preferred, ...FALLBACK_MODELS].filter(Boolean) as string[])]
+
+  let res: Response | null = null
+  for (const model of models) {
+    res = await callModel(model, key, body)
+    if (res.status !== 404) {
+      if (res.ok) workingModel = model
+      break
+    }
+    console.warn(`Gemini model ${model} not available, trying the next one`)
+  }
+
+  if (!res || !res.ok) {
+    const detail = res ? `${res.status} ${await res.text()}` : 'no response'
+    if (res?.status === 429) throw new UserError('The AI is busy right now. Please try again in a minute.')
+    throw new Error(`Gemini request failed: ${detail}`)
   }
 
   const data = await res.json()
