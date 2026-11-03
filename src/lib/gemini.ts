@@ -7,7 +7,7 @@ export type Hazard = 'low' | 'medium' | 'high'
 
 type ImagePart = { mimeType: string; base64: string }
 
-const FALLBACK_MODELS = ['gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-3.5-flash-lite', 'gemini-3-flash-preview']
+const FALLBACK_MODELS = ['gemini-3.8-flash', 'gemini-3.5-flash-lite', 'gemini-3.6-flash', 'gemini-3-flash-preview']
 const RETRYABLE = new Set([429, 500, 502, 503, 504])
 
 let workingModel: string | null = null
@@ -21,7 +21,7 @@ async function callModel(model: string, key: string, body: string): Promise<Resp
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
       body,
       cache: 'no-store',
-      signal: AbortSignal.timeout(25000),
+      signal: AbortSignal.timeout(20000),
     })
   } catch (err) {
     console.warn(`Gemini model ${model} timed out or failed`, err)
@@ -33,18 +33,25 @@ async function ask(prompt: string, images: ImagePart[]): Promise<any> {
   const key = process.env.GEMINI_API_KEY
   if (!key) throw new Error('GEMINI_API_KEY is not set')
 
-  const body = JSON.stringify({
-    contents: [
-      {
-        role: 'user',
-        parts: [
-          { text: prompt },
-          ...images.map((img) => ({ inlineData: { mimeType: img.mimeType, data: img.base64 } })),
-        ],
+  const request = (withThinking: boolean) =>
+    JSON.stringify({
+      contents: [
+        {
+          role: 'user',
+          parts: [
+            { text: prompt },
+            ...images.map((img) => ({ inlineData: { mimeType: img.mimeType, data: img.base64 } })),
+          ],
+        },
+      ],
+      generationConfig: {
+        responseMimeType: 'application/json',
+        // Low thinking keeps photo checks fast; this task does not need deep reasoning.
+        ...(withThinking ? { thinkingConfig: { thinkingLevel: 'low' } } : {}),
       },
-    ],
-    generationConfig: { responseMimeType: 'application/json', temperature: 0.2 },
-  })
+    })
+  let body = request(true)
+  let thinkingRejected = false
 
   // Models get retired or overloaded from time to time, so retry once and then move on to the next model.
   const preferred = workingModel ?? process.env.GEMINI_MODEL
@@ -55,14 +62,21 @@ async function ask(prompt: string, images: ImagePart[]): Promise<any> {
   let lastError = 'no response'
   outer: for (const model of models) {
     for (let attempt = 0; attempt < 2; attempt++) {
-      if (Date.now() - started > 45000) break outer
+      if (Date.now() - started > 50000) break outer
       res = await callModel(model, key, body)
       if (res?.ok) {
         workingModel = model
         break outer
       }
-      lastError = res ? `${model} ${res.status} ${(await res.text()).slice(0, 300)}` : `${model} timeout`
+      const errorText = res ? await res.text() : ''
+      lastError = res ? `${model} ${res.status} ${errorText.slice(0, 300)}` : `${model} timeout`
       console.warn(`Gemini request failed: ${lastError}`)
+      if (res?.status === 400 && /thinking/i.test(errorText) && !thinkingRejected) {
+        thinkingRejected = true
+        body = request(false)
+        attempt -= 1
+        continue
+      }
       if (res && !RETRYABLE.has(res.status)) break
       if (attempt === 0) await sleep(1500)
     }
