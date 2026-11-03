@@ -2,6 +2,8 @@ import CollectBoard from '@/components/CollectBoard'
 import { getClaimedBy, getOpenReports } from '@/lib/queries'
 import { getUser } from '@/lib/session'
 
+export const maxDuration = 60
+
 export default async function CollectPage() {
   const user = await getUser()
   const [open, mine] = await Promise.all([getOpenReports(), user ? getClaimedBy(user.id) : Promise.resolve([])])

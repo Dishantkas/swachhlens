@@ -18,17 +18,26 @@ export type Hazard = 'low' | 'medium' | 'high'
 
 type ImagePart = { mimeType: string; base64: string }
 
-const FALLBACK_MODELS = ['gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-3-flash-preview', 'gemini-flash-latest']
+const FALLBACK_MODELS = ['gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-3.5-flash-lite', 'gemini-3-flash-preview']
+const RETRYABLE = new Set([429, 500, 502, 503, 504])
 
 let workingModel: string | null = null
 
-async function callModel(model: string, key: string, body: string) {
-  return fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
-    body,
-    cache: 'no-store',
-  })
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
+async function callModel(model: string, key: string, body: string): Promise<Response | null> {
+  try {
+    return await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
+      body,
+      cache: 'no-store',
+      signal: AbortSignal.timeout(25000),
+    })
+  } catch (err) {
+    console.warn(`Gemini model ${model} timed out or failed`, err)
+    return null
+  }
 }
 
 async function ask(prompt: string, images: ImagePart[]): Promise<any> {
@@ -48,24 +57,34 @@ async function ask(prompt: string, images: ImagePart[]): Promise<any> {
     generationConfig: { responseMimeType: 'application/json', temperature: 0.2 },
   })
 
-  // Google retires model names from time to time, so fall back to the next one if a model is gone.
+  // Models get retired or overloaded from time to time, so retry once and then move on to the next model.
   const preferred = workingModel ?? process.env.GEMINI_MODEL
   const models = [...new Set([preferred, ...FALLBACK_MODELS].filter(Boolean) as string[])]
+  const started = Date.now()
 
   let res: Response | null = null
-  for (const model of models) {
-    res = await callModel(model, key, body)
-    if (res.status !== 404) {
-      if (res.ok) workingModel = model
-      break
+  let lastError = 'no response'
+  outer: for (const model of models) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      if (Date.now() - started > 45000) break outer
+      res = await callModel(model, key, body)
+      if (res?.ok) {
+        workingModel = model
+        break outer
+      }
+      lastError = res ? `${model} ${res.status} ${(await res.text()).slice(0, 300)}` : `${model} timeout`
+      console.warn(`Gemini request failed: ${lastError}`)
+      if (res && !RETRYABLE.has(res.status)) break
+      if (attempt === 0) await sleep(1500)
     }
-    console.warn(`Gemini model ${model} not available, trying the next one`)
+    if (res && !RETRYABLE.has(res.status) && res.status !== 404) break
   }
 
   if (!res || !res.ok) {
-    const detail = res ? `${res.status} ${await res.text()}` : 'no response'
-    if (res?.status === 429) throw new UserError('The AI is busy right now. Please try again in a minute.')
-    throw new Error(`Gemini request failed: ${detail}`)
+    if (!res || RETRYABLE.has(res.status)) {
+      throw new UserError('The AI service is busy right now. Please try again in a minute.')
+    }
+    throw new Error(`Gemini request failed: ${lastError}`)
   }
 
   const data = await res.json()

@@ -42,7 +42,7 @@ export default function ReportForm() {
     if (!photo) return
     setBusy('analyse')
     setError('')
-    const res = await analyzeReport(photo)
+    const res = await analyzeReport(photo).catch(() => ({ ok: false as const, error: 'Network problem. Please try again.' }))
     setBusy(null)
     if (!res.ok) {
       setError(res.error)
@@ -76,7 +76,10 @@ export default function ReportForm() {
     if (!photo || !ticket || !spot) return
     setBusy('submit')
     setError('')
-    const res = await submitReport({ photo, ticket, lat: spot.lat, lng: spot.lng, address, landmark })
+    const res = await submitReport({ photo, ticket, lat: spot.lat, lng: spot.lng, address, landmark }).catch(() => ({
+      ok: false as const,
+      error: 'Network problem. Please try again.',
+    }))
     setBusy(null)
     if (!res.ok) {
       setError(res.error)

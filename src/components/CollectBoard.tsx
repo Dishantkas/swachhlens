@@ -215,7 +215,7 @@ function CompleteDialog({ report, onClose }: { report: ReportItem; onClose: (cha
       photo,
       lat: position?.lat ?? null,
       lng: position?.lng ?? null,
-    })
+    }).catch(() => ({ ok: false as const, error: 'Network problem. Please try again.' }))
     setBusy(false)
 
     if (!res.ok) {

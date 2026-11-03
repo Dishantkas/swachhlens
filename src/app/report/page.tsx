@@ -2,6 +2,8 @@ import { redirect } from 'next/navigation'
 import ReportForm from '@/components/ReportForm'
 import { getUser } from '@/lib/session'
 
+export const maxDuration = 60
+
 export default async function ReportPage() {
   const user = await getUser()
   if (!user) redirect('/login?next=/report')
