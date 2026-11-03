@@ -40,6 +40,10 @@ export default async function ProfilePage() {
         </section>
 
         <section>
+          <Link href="/feedback" className="card mb-6 block border-brand-200 bg-brand-50 hover:bg-brand-100">
+            <p className="font-semibold text-brand-800">Share your feedback</p>
+            <p className="text-sm text-stone-600">A 2-minute survey about using SwachhLens.</p>
+          </Link>
           <h2 className="mb-3 font-semibold">Points history</h2>
           <div className="card divide-y divide-stone-100 p-0">
             {ledger.length === 0 && <p className="p-4 text-sm text-stone-500">No points yet.</p>}

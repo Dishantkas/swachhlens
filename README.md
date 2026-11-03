@@ -11,7 +11,11 @@ SwachhLens is a web app for reporting and cleaning up litter in your area. A cit
 - **Collect.** Volunteers see open spots on a map, claim one, and get directions.
 - **AI-verified clean-ups.** The collector uploads an "after" photo from the same spot. The AI compares it with the original and confirms the waste is gone. The collector also has to be near the spot.
 - **Points and leaderboard.** 10 points per report, and 20+ points per verified clean-up depending on the weight.
-- **Admin dashboard.** Totals, a 7-day chart, waste-type breakdown, and options to reject or delete reports.
+- **Admin dashboard.** Totals, a 7-day chart, waste-type breakdown, a hotspot map of the busiest areas, average time to clean, and options to reject or delete reports.
+- **Feedback survey.** A built-in questionnaire using the System Usability Scale (SUS) plus four questions about the app, with age group, occupation and previous reporting method.
+- **AI accuracy checker.** Admins confirm the real waste type in each photo. The app calculates accuracy, a confusion matrix, per-class precision, recall and F1, and an exact binomial test against an 80% target.
+- **Survey results.** Mean SUS score, grade, Likert charts and one-sample t-tests for each hypothesis.
+- **CSV export.** Download all reports and survey responses for analysis in Excel or SPSS.
 - **Fair-play rules.** You can't collect your own report, the same photo can't be used twice, and there are daily report limits. Claims expire after 24 hours.
 
 ## Tech stack
@@ -33,9 +37,10 @@ src/
   app/
     actions/        server actions (auth, reports, collect, admin)
     api/photo/      serves report photos
-    admin/ collect/ leaderboard/ login/ profile/ register/ report/ reports/[id]/
+    api/export/     CSV downloads for admins
+    admin/ collect/ feedback/ leaderboard/ login/ profile/ register/ report/ reports/[id]/
   components/       UI components (map, forms, charts)
-  lib/              database, session, Gemini, geo and query helpers
+  lib/              database, session, Gemini, geo, query, survey and statistics helpers
 ```
 
 The database tables are created automatically the first time the app connects.
@@ -45,6 +50,7 @@ The database tables are created automatically the first time the app connects.
 - `users`: name, email, password hash
 - `reports`: photo, AI result, location, status (`pending` → `claimed` → `collected` / `rejected`), collector, after photo
 - `points_ledger`: every point earned or lost, with the reason
+- `feedback`: one survey response per user (SUS items s1–s10, SUS score, four Likert items, demographics)
 
 ## Environment variables
 
@@ -54,7 +60,7 @@ Copy `.env.example` to `.env` (for local use), or add these in Vercel → Projec
 | --- | --- |
 | `DATABASE_URL` | Neon connection string |
 | `GEMINI_API_KEY` | API key from Google AI Studio |
-| `GEMINI_MODEL` | Optional, defaults to `gemini-2.5-flash` |
+| `GEMINI_MODEL` | Optional, defaults to `gemini-3.8-flash` |
 | `SESSION_SECRET` | Random string, 32+ characters |
 | `ADMIN_EMAILS` | Emails that can open `/admin` (comma separated) |
 | `COLLECT_MAX_DISTANCE_M` | Max distance in metres between collector and spot, `0` to disable |

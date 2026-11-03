@@ -247,6 +247,14 @@ function CompleteDialog({ report, onClose }: { report: ReportItem; onClose: (cha
               )}
             </div>
             {outcome.note && <p className="mt-1 text-sm text-stone-700">{outcome.note}</p>}
+            {outcome.passed && (
+              <p className="mt-2 text-sm text-stone-600">
+                Got 2 minutes?{' '}
+                <Link href="/feedback" className="font-medium text-brand-700 hover:underline">
+                  Tell us how it went
+                </Link>
+              </p>
+            )}
             {!outcome.passed && (
               <p className="mt-2 text-sm text-stone-600">
                 Make sure the photo shows the same place and that the waste is gone, then try again.

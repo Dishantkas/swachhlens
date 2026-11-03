@@ -1,19 +1,8 @@
 import 'server-only'
 import { UserError } from './errors'
+import { WASTE_TYPES, type WasteType } from './waste'
 
-export const WASTE_TYPES = [
-  'plastic',
-  'paper',
-  'glass',
-  'metal',
-  'organic',
-  'e-waste',
-  'textile',
-  'construction',
-  'mixed',
-] as const
-
-export type WasteType = (typeof WASTE_TYPES)[number]
+export { WASTE_TYPES, type WasteType }
 export type Hazard = 'low' | 'medium' | 'high'
 
 type ImagePart = { mimeType: string; base64: string }

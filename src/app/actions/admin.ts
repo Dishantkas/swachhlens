@@ -5,6 +5,7 @@ import { db } from '@/lib/db'
 import { attempt, UserError } from '@/lib/errors'
 import { REJECT_PENALTY } from '@/lib/points'
 import { requireUser } from '@/lib/session'
+import { NOT_WASTE, WASTE_TYPES } from '@/lib/waste'
 
 async function requireAdmin() {
   const user = await requireUser()
@@ -47,6 +48,23 @@ export async function deleteReport(reportId: number) {
     revalidatePath('/admin')
     revalidatePath('/collect')
     revalidatePath('/')
+    return null
+  })
+}
+
+export async function setVerifiedType(reportId: number, verifiedType: string | null) {
+  return attempt(async () => {
+    await requireAdmin()
+    const id = Number(reportId)
+    const allowed: string[] = [...WASTE_TYPES, NOT_WASTE]
+    if (verifiedType !== null && !allowed.includes(verifiedType)) throw new UserError('Unknown waste type.')
+
+    const sql = await db()
+    await sql`
+      UPDATE reports
+      SET verified_type = ${verifiedType}, verified_at = ${verifiedType ? new Date() : null}
+      WHERE id = ${id}`
+    revalidatePath('/admin/accuracy')
     return null
   })
 }

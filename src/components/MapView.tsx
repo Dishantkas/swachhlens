@@ -10,6 +10,7 @@ export type MapPoint = {
   lng: number
   color?: string
   popup?: string
+  radius?: number
 }
 
 type Props = {
@@ -72,11 +73,11 @@ export default function MapView({ points = [], selected, onPick, onPointClick, c
 
     for (const p of points) {
       const marker = L.circleMarker([p.lat, p.lng], {
-        radius: 9,
+        radius: p.radius ?? 9,
         color: '#fff',
         weight: 2,
         fillColor: p.color ?? '#197d4f',
-        fillOpacity: 0.9,
+        fillOpacity: p.radius ? 0.6 : 0.9,
       }).addTo(group)
       if (p.popup) {
         const text = document.createElement('div')

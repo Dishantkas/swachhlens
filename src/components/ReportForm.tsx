@@ -105,7 +105,7 @@ export default function ReportForm() {
           Thanks for helping. You earned <b className="text-amber-700">{done.points} points</b>. Collectors nearby can
           now see this spot.
         </p>
-        <div className="mt-5 flex justify-center gap-2">
+        <div className="mt-5 flex flex-wrap justify-center gap-2">
           <Link href={`/reports/${done.id}`} className="btn-outline">
             View report
           </Link>
@@ -113,6 +113,12 @@ export default function ReportForm() {
             Report another
           </button>
         </div>
+        <p className="mt-5 text-sm text-stone-600">
+          Got 2 minutes?{' '}
+          <Link href="/feedback" className="font-medium text-brand-700 hover:underline">
+            Tell us how it went
+          </Link>
+        </p>
       </div>
     )
   }

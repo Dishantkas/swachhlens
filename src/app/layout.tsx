@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
+import Link from 'next/link'
 import Navbar from '@/components/Navbar'
 import { getPoints } from '@/lib/queries'
 import { getUser } from '@/lib/session'
@@ -24,7 +25,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <Navbar user={user ? { name: user.name, isAdmin: user.isAdmin, points } : null} />
         <main className="mx-auto max-w-6xl px-4 py-8">{children}</main>
         <footer className="border-t border-stone-200 py-6 text-center text-sm text-stone-500">
-          SwachhLens · Keep your city clean
+          SwachhLens · Keep your city clean ·{' '}
+          <Link href="/feedback" className="text-brand-700 hover:underline">
+            Give feedback
+          </Link>
         </footer>
       </body>
     </html>

@@ -14,9 +14,10 @@ function getClient() {
 }
 
 async function createSchema(sql: NeonQueryFunction<false, false>) {
-  const [{ ready }] = await sql`SELECT to_regclass('public.points_ledger') IS NOT NULL AS ready`
+  const [{ ready }] = await sql`SELECT to_regclass('public.feedback') IS NOT NULL AS ready`
   if (ready) return
 
+  // Runs once per database. The feedback table is created last, so its presence means everything is in place.
   // The advisory lock stops two cold starts from creating the same tables at once.
   await sql.transaction([
     sql`SELECT pg_advisory_xact_lock(7243001)`,
@@ -64,6 +65,26 @@ async function createSchema(sql: NeonQueryFunction<false, false>) {
         created_at TIMESTAMPTZ NOT NULL DEFAULT now()
       )`,
     sql`CREATE INDEX IF NOT EXISTS points_user_idx ON points_ledger (user_id)`,
+    sql`ALTER TABLE reports ADD COLUMN IF NOT EXISTS verified_type TEXT`,
+    sql`ALTER TABLE reports ADD COLUMN IF NOT EXISTS verified_at TIMESTAMPTZ`,
+    sql`
+      CREATE TABLE IF NOT EXISTS feedback (
+        id SERIAL PRIMARY KEY,
+        user_id INT NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+        age_group TEXT,
+        occupation TEXT,
+        prior_method TEXT,
+        s1 INT NOT NULL, s2 INT NOT NULL, s3 INT NOT NULL, s4 INT NOT NULL, s5 INT NOT NULL,
+        s6 INT NOT NULL, s7 INT NOT NULL, s8 INT NOT NULL, s9 INT NOT NULL, s10 INT NOT NULL,
+        sus_score REAL NOT NULL,
+        ease INT NOT NULL,
+        ai_trust INT NOT NULL,
+        motivation INT NOT NULL,
+        recommend INT NOT NULL,
+        comments TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      )`,
   ])
 }
 
